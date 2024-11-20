@@ -59,8 +59,7 @@ mysql_ai_tool_project/
 7. **`utils/prompts.py`**:  
    Stores prompt templates used by the AI to ensure that queries and responses are appropriately formatted.
 
-## 🚀 How It Works
-# 🚀 How It Works
+## 🚀 How It Works！
 
 1. **Connect to Your Database**: Launch the tool using `main.py`. The GUI will prompt you to enter your MySQL credentials, including the username, password, host, and port. You can also specify a particular database.
 
