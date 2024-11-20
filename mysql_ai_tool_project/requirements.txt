@@ -1,0 +1,5 @@
+mysql-connector-python
+tabulate
+openai
+langchain
+tkinter
