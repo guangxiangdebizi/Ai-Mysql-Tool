@@ -60,20 +60,88 @@ mysql_ai_tool_project/
    Stores prompt templates used by the AI to ensure that queries and responses are appropriately formatted.
 
 ## 🚀 How It Works
+# 🚀 How It Works
 
-1. **Connect to Your Database**:  
-   Launch the tool using `main.py`. The GUI will prompt you to enter your MySQL credentials, including the username, password, host, and port. You can also specify a particular database.
+1. **Connect to Your Database**: Launch the tool using `main.py`. The GUI will prompt you to enter your MySQL credentials, including the username, password, host, and port. You can also specify a particular database.
 
-2. **Choose an Interaction Mode**:  
+2. **Choose an Interaction Mode**:
+
    - **Interactive Shell**: You can directly type SQL commands or use natural language queries.
+
    - **AI-Assisted Shell**: Input questions like "What are the details of employees older than 30?" and let the tool generate the SQL query, execute it, and provide a summary.
 
-3. **Database Structure Awareness**:  
-   The AI leverages the database structure (e.g., tables and fields) and also includes a few sample rows to understand the data's context better. This is especially useful when dealing with ambiguities (e.g., abbreviations or specific data formatting like "sex" being in English).
+3. **Database Structure Awareness**: To accurately generate SQL, the AI needs knowledge of the database schema. The application automatically gathers:
 
-4. **Real-Time Results and Interpretation**:  
-   After executing a query, you can view both the data and a human-friendly explanation of the results. This feature helps make data more accessible, even for non-technical users.
+   - **Table Names and Fields**: Collected from the database using `SHOW TABLES` and `DESCRIBE` commands.
+   - **Random Data Samples**: The AI also receives a few rows of data to understand the content types and distribution. This is especially useful when a field is ambiguous, e.g., gender represented by `M/F` instead of full strings like `Male/Female`.
 
+   For instance, if the database contains a table called `employees`, the system will generate a structure similar to this:
+
+   ```
+   表名：employees
+   字段：
+     - id (INT, NOT NULL, PRIMARY KEY)
+     - name (VARCHAR(50), NOT NULL)
+     - age (INT, NOT NULL)
+     - department_id (INT, NULLABLE)
+   样本数据：
+   +----+----------+-----+--------------+
+   | id | name     | age | department_id|
+   +----+----------+-----+--------------+
+   |  1 | John Doe |  45 | 2            |
+   |  2 | Jane Doe |  32 | NULL         |
+   +----+----------+-----+--------------+
+   ```
+
+4. **Clarification Phase by the AI (LLM)**: After gathering the database structure, the tool uses an AI language model (LLM) to understand and clarify the user's input:
+
+   - **Prompt Construction**: The system constructs a prompt that includes the user query, table structure, and sample data. This helps the AI clarify what kind of SQL should be generated.
+   - **Clarification with Context**: For instance, for the input "Show me all employees over the age of 30," the LLM uses the database structure to determine that `employees` is the appropriate table and `age` is the relevant field.
+
+5. **SQL Query Generation**: The AI generates an SQL query based on the clarified information. In this step:
+
+   - **LLM SQL Generation**: The AI, with all the context provided, creates an appropriate SQL statement. For example:
+
+     ```sql
+     SELECT * FROM employees WHERE age > 30;
+     ```
+
+   - **Extracting Pure SQL**: If the AI generates more information (e.g., explanations or comments), a post-processing step extracts just the SQL command for execution.
+
+6. **Executing the SQL Query**: Once the SQL command is ready, it is passed to the database interaction module:
+
+   - **Database Connection**: Using the established connection (from `db/connection.py`), the SQL is executed against the connected MySQL instance.
+   - **Result Handling**: The results are fetched, and any potential errors are caught and handled gracefully.
+
+   For the example query, the execution might return:
+
+   ```
+   +----+----------+-----+--------------+
+   | id | name     | age | department_id|
+   +----+----------+-----+--------------+
+   |  1 | John Doe |  45 | 2            |
+   |  3 | Alice    |  50 | 1            |
+   +----+----------+-----+--------------+
+   ```
+
+7. **Natural Language Result Interpretation**: After executing the SQL query, the tool then uses the AI to interpret and present the results in an understandable format:
+
+   - **Prompt for Explanation**: A new prompt is created with the query results to generate a natural language explanation.
+   - **LLM Generates Explanation**: The AI uses the query results to generate an answer like:
+
+     ```
+     AI 生成的回答：
+     所有年龄大于 30 岁的员工包括：
+     1. John Doe, 45 岁
+     2. Alice, 50 岁
+     ```
+
+   This step helps users, especially those who may not be well-versed in interpreting raw data, to quickly understand the meaning behind the results.
+
+8. **Streaming Output for Real-Time Interaction**: To enhance the interactivity of the tool:
+
+   - **Real-Time Streaming**: When generating natural language explanations, the AI provides streaming output so that users get feedback immediately, even as the final answer is being formed.
+   - **Seamless Interaction**: This ensures that users feel they are in a conversational environment rather than waiting for a batch process to complete.
 ## 📦 Installation and Setup
 
 ### Prerequisites
