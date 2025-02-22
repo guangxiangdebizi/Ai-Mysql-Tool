@@ -23,59 +23,77 @@ def generate_sql(user_question, conversation_history=None, connection=None):
     if connection is None:
         raise ValueError("Connection must be provided to generate database structure.")
 
-    # 获取包含随机样本数据的数据库结构
-    database_structure = get_database_structure_with_samples(connection)
+    try:
+        # 获取数据库结构
+        database_structure = get_database_structure_with_samples(connection)
+        if database_structure == "数据库结构获取失败，请检查数据库连接":
+            raise ValueError("Failed to get database structure")
 
-    # 构造对话历史
-    history_prompt = "\n".join(
-        [f"用户：{entry['user']}\nLLM：{entry['response']}" for entry in conversation_history]
-    )
+        # 构造对话历史
+        history_prompt = "\n".join(
+            [f"用户：{entry['user']}\nLLM：{entry['response']}" for entry in conversation_history]
+        ) if conversation_history else "无历史对话"
 
-    # 构造澄清提示
-    clarify_prompt_text = clarify_prompt.format(
-        conversation_history=history_prompt,
-        database_structure=database_structure,
-        user_question=user_question,
-    )
+        # 构造澄清提示
+        clarify_prompt_text = clarify_prompt.format(
+            conversation_history=history_prompt,
+            database_structure=database_structure,
+            user_question=user_question,
+        )
 
-    # 调用 LLM 进行澄清
-    clarification_completion = client.chat.completions.create(
-        model=MODEL_NAME,
-        messages=[{"role": "user", "content": clarify_prompt_text}],
-        temperature=0.7,
-    )
-    clarified_user_question = clarification_completion.choices[0].message.content
+        # 打印调试信息
+        print("\n[DEBUG] Database Structure:")
+        print(database_structure)
+        print("\n[DEBUG] Clarify Prompt:")
+        print(clarify_prompt_text)
 
-    print(f"\n[DEBUG] LLM Clarification Output:\n{clarified_user_question}")
+        # 调用 LLM 进行澄清
+        clarification_completion = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[{"role": "user", "content": clarify_prompt_text}],
+            temperature=0.7,
+        )
+        clarified_user_question = clarification_completion.choices[0].message.content
 
-    # 构造 SQL 生成提示
-    full_prompt = f"{history_prompt}\n用户：{clarified_user_question}"
-    prompt = sql_prompt.format(user_question=full_prompt)
+        print(f"\n[DEBUG] LLM Clarification Output:\n{clarified_user_question}")
 
-    completion = client.chat.completions.create(
-        model=MODEL_NAME,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.8,
-    )
-    llm_output = completion.choices[0].message.content
+        # 使用 prompts.py 中定义的 SQL 生成提示
+        prompt = sql_prompt.format(
+            database_structure=database_structure,
+            user_question=clarified_user_question
+        )
 
-    print(f"\n[DEBUG] LLM SQL Generation Output:\n{llm_output}")
+        completion = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.8,
+        )
+        llm_output = completion.choices[0].message.content
 
-    # 提取有效 SQL 查询
-    extract_prompt_text = extract_sql_prompt.format(llm_output=llm_output)
-    extraction_completion = client.chat.completions.create(
-        model=MODEL_NAME,
-        messages=[{"role": "user", "content": extract_prompt_text}],
-        temperature=0.3,
-    )
-    sql_query = extraction_completion.choices[0].message.content
+        print(f"\n[DEBUG] LLM SQL Generation Output:\n{llm_output}")
 
-    print(f"\n[DEBUG] LLM SQL Extraction Output:\n{sql_query}")
+        # 提取有效 SQL 查询
+        extract_prompt_text = extract_sql_prompt.format(llm_output=llm_output)
+        extraction_completion = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[{"role": "user", "content": extract_prompt_text}],
+            temperature=0.3,
+        )
+        sql_query = extraction_completion.choices[0].message.content
 
-    # 清理并返回最终 SQL
-    sql_query = sql_query.strip().replace("```sql", "").replace("```", "").splitlines()
-    sql_query = " ".join(line for line in sql_query if not line.strip().startswith("--"))
-    return sql_query
+        print(f"\n[DEBUG] LLM SQL Extraction Output:\n{sql_query}")
+
+        # 清理并返回最终 SQL
+        sql_query = sql_query.strip().replace("```sql", "").replace("```", "").splitlines()
+        sql_query = " ".join(line for line in sql_query if not line.strip().startswith("--"))
+        return sql_query.strip()
+
+    except Exception as e:
+        print(f"SQL 生成过程中发生错误：{e}")
+        print(f"错误类型：{type(e)}")
+        import traceback
+        print(f"错误堆栈：\n{traceback.format_exc()}")
+        return "SELECT 1"  # 返回一个安全的默认查询
 
 def generate_answer(user_question, query_results):
     """
@@ -131,7 +149,7 @@ def ai_interactive_shell(connection):
     """
     AI 辅助的 MySQL Shell 模式，支持通过自然语言生成 SQL 并执行。
     """
-    conversation_history = []  # 用于存储用户的对话历史
+    conversation_history = []
     try:
         while True:
             user_question = input("ai-mysql> ").strip()
@@ -140,12 +158,12 @@ def ai_interactive_shell(connection):
                 break
 
             try:
-                # 获取数据库结构和样本数据
-                database_structure = get_database_structure_with_samples(connection)
-                print(f"\n[DEBUG] Database Structure and Samples:\n{database_structure}")
-
                 # 调用 SQL 生成逻辑
                 sql_query = generate_sql(user_question, conversation_history, connection=connection)
+                if not sql_query:
+                    print("无法生成有效的SQL查询")
+                    continue
+
                 print(f"\n[DEBUG] Final SQL Query for Execution:\n{sql_query}")
 
                 # 执行 SQL 查询
@@ -171,7 +189,8 @@ def ai_interactive_shell(connection):
             except mysql.connector.Error as e:
                 print(f"SQL 错误：{e}")
             except Exception as e:
-                print(f"未知错误：{e}")
+                print(f"执行查询时发生错误：{e}")
+                
     finally:
         if 'cursor' in locals() and cursor:
             cursor.close()

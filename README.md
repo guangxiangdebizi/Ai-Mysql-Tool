@@ -19,21 +19,26 @@ The project is organized into several modules, each with a specific responsibili
 ```
 mysql_ai_tool_project/
 ├── main.py                  # Main entry point of the application
-├── config.py                # Global configuration (API keys, model settings, etc.)
+├── config.py               # Global configuration (API keys, model settings, etc.)
+├── __init__.py             # Makes the project a Python package
+├── web/                    # Web interface components
+│   ├── app.py             # Flask web application
+│   └── templates/         # HTML templates directory
 ├── db/
 │   ├── __init__.py         # Makes db a Python package
 │   ├── connection.py      # Manages database connections
-│   ├── utils.py           # Database utility functions (e.g., table structure)
+│   └── utils.py           # Database utility functions
 ├── gui/
 │   ├── __init__.py         # Makes gui a Python package
-│   ├── credentials_gui.py # GUI for user credential input
+│   └── credentials_gui.py # GUI for user credential input
 ├── ai/
 │   ├── __init__.py         # Makes ai a Python package
 │   ├── llm_interaction.py # Manages interaction with the AI language model
+│   └── llm_interaction.md # Documentation for LLM interaction
 ├── utils/
 │   ├── __init__.py         # Makes utils a Python package
-│   ├── prompts.py         # Prompt templates for the language model
-├── requirements.txt       # Project dependencies
+│   └── prompts.py         # Prompt templates for the language model
+└── requirements.txt       # Project dependencies
 ```
 
 ### Module Overview
@@ -44,20 +49,34 @@ mysql_ai_tool_project/
 2. **`config.py`**:  
    Stores configuration values such as API keys for the AI model, base URLs, and model names.
 
-3. **`db/connection.py`**:  
-   Manages the MySQL database connection, including functions to establish or close connections securely.
+3. **`web/`**:  
+   New web interface module that provides a browser-based interface:
+   - **`app.py`**: Flask web application that handles HTTP requests and manages the web interface
+   - **`templates/`**: Directory containing HTML templates for the web interface
 
-4. **`db/utils.py`**:  
-   Provides utility functions to work with the database, such as displaying the structure of tables and generating sample data for AI context enhancement.
+4. **`db/`**:  
+   Database interaction module:
+   - **`connection.py`**: Manages MySQL database connections securely
+   - **`utils.py`**: Provides database utility functions for structure analysis and data sampling
 
-5. **`gui/credentials_gui.py`**:  
-   Implements a GUI using Tkinter to accept user credentials for connecting to the MySQL database. This keeps the setup user-friendly.
+5. **`gui/`**:  
+   Desktop GUI components:
+   - **`credentials_gui.py`**: Tkinter-based GUI for database connection setup
 
-6. **`ai/llm_interaction.py`**:  
-   Manages communication with the AI language model, including generating SQL from user queries and interpreting the results. Supports streaming output for real-time response.
+6. **`ai/`**:  
+   AI integration components:
+   - **`llm_interaction.py`**: Manages communication with the AI language model
+   - **`llm_interaction.md`**: Documentation for LLM integration and usage
 
-7. **`utils/prompts.py`**:  
-   Stores prompt templates used by the AI to ensure that queries and responses are appropriately formatted.
+7. **`utils/`**:  
+   Utility functions and templates:
+   - **`prompts.py`**: Stores prompt templates for the AI model
+
+The project now supports multiple interfaces:
+- Traditional command-line interface
+- Desktop GUI interface using Tkinter
+- Modern web interface using Flask
+This multi-interface approach allows users to choose their preferred method of interaction while maintaining consistent functionality across all interfaces.
 
 ## 🚀 How It Works！
 
@@ -146,6 +165,20 @@ mysql_ai_tool_project/
 ### Prerequisites
 - Python 3.8 or later
 - MySQL server running locally or remotely
+- For GUI features:
+  - Tkinter (usually included with Python)
+    - Windows: Included in standard Python installation
+    - Linux: Install via `sudo apt-get install python3-tk` (Ubuntu/Debian)
+    - macOS: Included in standard Python installation
+- Web browser (for web interface mode)
+
+### System Requirements
+- Minimum 4GB RAM recommended
+- Internet connection (for AI model API calls)
+- Supported Operating Systems:
+  - Windows 10 or later
+  - macOS 10.14 or later
+  - Linux (major distributions)
 
 ### Installation Steps
 1. **Clone the Repository**:
@@ -168,10 +201,31 @@ mysql_ai_tool_project/
 4. **Configure API Keys**:
    - Open `config.py` and add your OpenAI API key or other model settings.
 
-5. **Run the Application**:
+### Running the Application
+
+You can use this tool in two different ways:
+
+1. **Web Interface Mode** (Recommended for most users):
    ```bash
-   python main.py
+   python mysql_ai_tool_project/web/app.py
    ```
+   - Opens a web interface accessible through your browser
+   - User-friendly interface with modern design
+   - Access at http://localhost:5000 in your web browser
+   - Supports all features through an intuitive web interface
+
+2. **Command Line Mode**:
+   ```bash
+   python mysql_ai_tool_project/main.py
+   ```
+   - Traditional command-line interface
+   - Includes both interactive shell and GUI credential input
+   - Suitable for terminal users and automation scripts
+   - Supports all core features through text-based interaction
+
+Choose the mode that best suits your needs:
+- Use Web Interface Mode if you prefer a modern, visual interface
+- Use Command Line Mode if you prefer terminal-based operations or need to automate tasks
 
 ## 📖 Example Use Case
 

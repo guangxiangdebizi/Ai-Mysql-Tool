@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI MySQL Assistant</title>
+    <!-- 使用Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 使用CodeMirror实现SQL高亮 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/monokai.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/sql/sql.min.js"></script>
+    <!-- 使用Tabulator实现表格展示 -->
+    <link href="https://unpkg.com/tabulator-tables@5.5.0/dist/css/tabulator.min.css" rel="stylesheet">
+    <script type="text/javascript" src="https://unpkg.com/tabulator-tables@5.5.0/dist/js/tabulator.min.js"></script>
+    <style>
+        .loading {
+            position: relative;
+            pointer-events: none;
+        }
+        .loading::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.7) url('https://cdnjs.cloudflare.com/ajax/libs/loading-svg/1.0.0/loading.svg') center no-repeat;
+            z-index: 1;
+        }
+        .error-message {
+            color: #dc2626;
+            padding: 0.5rem;
+            border-radius: 0.375rem;
+            background-color: #fee2e2;
+            margin-top: 0.5rem;
+        }
+        .success-message {
+            color: #059669;
+            padding: 0.5rem;
+            border-radius: 0.375rem;
+            background-color: #d1fae5;
+            margin-top: 0.5rem;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="flex h-screen">
+        <!-- 左侧数据库配置面板 -->
+        <div class="w-80 bg-white shadow-lg p-6 overflow-y-auto">
+            <h2 class="text-xl font-bold mb-4">数据库配置</h2>
+            <form id="db-config" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">用户名</label>
+                    <input type="text" id="username" name="username" value="root"
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">密码</label>
+                    <input type="password" id="password" name="password"
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">主机地址</label>
+                    <input type="text" id="host" name="host" value="localhost"
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">端口</label>
+                    <input type="text" id="port" name="port" value="3306"
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">数据库</label>
+                    <select id="database" name="database"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        <option value="">选择数据库...</option>
+                    </select>
+                </div>
+                <button type="button" onclick="testConnection()" 
+                        class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 mb-2">
+                    测试连接
+                </button>
+                <div class="flex space-x-2">
+                    <button type="button" onclick="saveConfig()" 
+                            class="flex-1 bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600">
+                        保存配置
+                    </button>
+                    <button type="button" onclick="loadConfig()" 
+                            class="flex-1 bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600">
+                        加载配置
+                    </button>
+                </div>
+                <div id="connection-status" class="text-sm"></div>
+            </form>
+        </div>
+
+        <!-- 右侧主要内容区域 -->
+        <div class="flex-1 p-8 overflow-y-auto">
+            <h1 class="text-3xl font-bold mb-8">AI MySQL Assistant</h1>
+            
+            <!-- 输入区域 -->
+            <div class="mb-6">
+                <textarea id="question" 
+                          class="w-full p-4 border rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500" 
+                          rows="3" 
+                          placeholder="请输入您的问题..."></textarea>
+                <button onclick="submitQuestion()" 
+                        class="mt-2 px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    提交问题
+                </button>
+            </div>
+
+            <!-- SQL显示区域 -->
+            <div class="mb-6">
+                <h2 class="text-xl font-semibold mb-2">生成的SQL查询</h2>
+                <textarea id="sql-display"></textarea>
+            </div>
+
+            <!-- 结果显示区域 -->
+            <div class="mb-6">
+                <h2 class="text-xl font-semibold mb-2">查询结果</h2>
+                <div id="results-table"></div>
+            </div>
+
+            <!-- AI回答区域 -->
+            <div class="mb-6">
+                <h2 class="text-xl font-semibold mb-2">AI解答</h2>
+                <div id="ai-answer" class="p-4 bg-white rounded-lg shadow"></div>
+            </div>
+
+            <!-- 添加查询历史记录 -->
+            <div class="mb-6">
+                <h2 class="text-xl font-semibold mb-2">查询历史</h2>
+                <div id="query-history" class="space-y-2">
+                    <!-- 历史记录将在这里动态添加 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 初始化CodeMirror
+        var sqlEditor = CodeMirror.fromTextArea(document.getElementById("sql-display"), {
+            mode: 'text/x-mysql',
+            theme: 'monokai',
+            lineNumbers: true,
+            readOnly: true
+        });
+
+        // 初始化Tabulator
+        var table = new Tabulator("#results-table", {
+            layout: "fitColumns",
+            responsiveLayout: "hide",
+            pagination: "local",
+            paginationSize: 10,
+        });
+
+        // 测试数据库连接
+        async function testConnection() {
+            const config = getDbConfig();
+            const statusDiv = document.getElementById('connection-status');
+            
+            try {
+                const response = await fetch('/api/test-connection', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(config),
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    statusDiv.textContent = '连接成功！';
+                    statusDiv.className = 'text-sm text-green-600';
+                    
+                    // 更新数据库下拉列表
+                    if (data.databases) {
+                        const dbSelect = document.getElementById('database');
+                        dbSelect.innerHTML = '<option value="">选择数据库...</option>';
+                        data.databases.forEach(db => {
+                            const option = document.createElement('option');
+                            option.value = db;
+                            option.textContent = db;
+                            dbSelect.appendChild(option);
+                        });
+                    }
+                } else {
+                    throw new Error(data.error);
+                }
+            } catch (error) {
+                statusDiv.textContent = '连接失败：' + error.message;
+                statusDiv.className = 'text-sm text-red-600';
+            }
+        }
+
+        // 获取数据库配置
+        function getDbConfig() {
+            return {
+                username: document.getElementById('username').value,
+                password: document.getElementById('password').value,
+                host: document.getElementById('host').value,
+                port: document.getElementById('port').value,
+                database: document.getElementById('database').value,
+            };
+        }
+
+        // 保存配置到 localStorage
+        function saveConfig() {
+            const config = getDbConfig();
+            localStorage.setItem('dbConfig', JSON.stringify(config));
+            showMessage('配置已保存', 'success');
+        }
+
+        // 从 localStorage 加载配置
+        function loadConfig() {
+            const savedConfig = localStorage.getItem('dbConfig');
+            if (savedConfig) {
+                const config = JSON.parse(savedConfig);
+                Object.entries(config).forEach(([key, value]) => {
+                    const element = document.getElementById(key);
+                    if (element) element.value = value;
+                });
+                showMessage('配置已加载', 'success');
+            }
+        }
+
+        // 显示消息提示
+        function showMessage(message, type = 'error') {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = type === 'error' ? 'error-message' : 'success-message';
+            messageDiv.textContent = message;
+            document.querySelector('#connection-status').appendChild(messageDiv);
+            setTimeout(() => messageDiv.remove(), 3000);
+        }
+
+        // 添加查询到历史记录
+        function addToHistory(question, sql) {
+            const historyDiv = document.getElementById('query-history');
+            const entry = document.createElement('div');
+            entry.className = 'p-4 bg-white rounded-lg shadow hover:shadow-md transition-shadow';
+            entry.innerHTML = `
+                <div class="text-sm text-gray-600">${new Date().toLocaleString()}</div>
+                <div class="font-medium">${question}</div>
+                <div class="text-sm text-gray-500 mt-1">${sql}</div>
+            `;
+            entry.onclick = () => {
+                document.getElementById('question').value = question;
+            };
+            historyDiv.insertBefore(entry, historyDiv.firstChild);
+        }
+
+        // 提交问题并处理结果
+        async function submitQuestion() {
+            const question = document.getElementById('question').value;
+            if (!question) {
+                showMessage('请输入问题', 'error');
+                return;
+            }
+
+            const config = getDbConfig();
+            if (!config.database) {
+                showMessage('请选择数据库', 'error');
+                return;
+            }
+
+            try {
+                // 显示加载状态
+                document.body.classList.add('loading');
+
+                const response = await fetch('/api/query', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        question: question,
+                        config: config
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                // 显示SQL
+                sqlEditor.setValue(data.sql);
+
+                // 显示查询结果
+                if (data.results && data.results.length > 0) {
+                    // 从第一行数据获取列名
+                    const columns = Object.keys(data.results[0]).map(key => ({
+                        title: key,
+                        field: key,
+                        sorter: "string"
+                    }));
+                    
+                    // 更新表格
+                    table.setColumns(columns);
+                    table.setData(data.results);
+                } else {
+                    table.setData([]);
+                    showMessage('没有找到匹配的数据', 'success');
+                }
+
+                // 显示AI解答
+                document.getElementById('ai-answer').innerHTML = data.answer;
+
+                // 添加到历史记录
+                addToHistory(question, data.sql);
+
+            } catch (error) {
+                showMessage(error.message);
+            } finally {
+                // 移除加载状态
+                document.body.classList.remove('loading');
+            }
+        }
+
+        // 添加回车键提交功能
+        document.getElementById('question').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                submitQuestion();
+            }
+        });
+    </script>
+</body>
+</html> 
+</html> 
